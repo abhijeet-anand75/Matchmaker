@@ -19,39 +19,44 @@ The design centres on solving this one problem correctly. Everything else
 ---
 
 ## High-Level Component Map
+
+```
 ┌─────────────────────────────────────────────────────────────────┐
-│                          HTTP API Layer                         │
-│   POST /enqueue   DELETE /enqueue/:id   GET /health             │
-│   GET /metrics    GET /matches                                  │
+│                         HTTP API Layer                          │
+│         POST /enqueue    DELETE /enqueue/:id    GET /health     │
+│                   GET /metrics    GET /matches                  │
 └────────────────────────────┬────────────────────────────────────┘
-│ Arc<MatchmakerCore>
+                             │ Arc<MatchmakerCore>
 ┌────────────────────────────▼────────────────────────────────────┐
 │                        MatchmakerCore                           │
 │                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                      PlayerPool                          │  │
-│  │  DashMap<Uuid, Arc<Player>>        primary store         │  │
-│  │  RwLock<BTreeMap<(u32,Uuid),       rating index          │  │
-│  │         Weak<Player>>>                                   │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                       PlayerPool                        │   │
+│  │                                                         │   │
+│  │   DashMap<Uuid, Arc<Player>>                            │   │
+│  │   (16 internal shards — primary store)                  │   │
+│  │                                                         │   │
+│  │   RwLock<BTreeMap<(u32, Uuid), Weak<Player>>>           │   │
+│  │   (shared read lock — rating index for range scans)     │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  Arc<Metrics>      — AtomicU64 counters, zero locks             │
-│  Arc<Notify>       — fires notify_one() on every enqueue        │
-│  Arc<RwLock<VecDeque<Match>>>  — bounded match history          │
-│  Arc<Config>       — immutable after startup                    │
+│  Arc<Metrics>  — AtomicU64 counters, zero locks                 │
+│  Arc<Notify>   — fires notify_one() on every enqueue            │
+│  Arc<RwLock<VecDeque<Match>>> — bounded match history           │
+│  Arc<Config>   — immutable after startup                        │
 └────────────────────────────┬────────────────────────────────────┘
-│ Arc clones distributed at spawn
-  ┌──────────────────────┼────────────────────┐
-  ▼                      ▼                    ▼
-┌──────────────┐  ┌──────────────┐  ┌───────────────────┐
-│   Worker 1   │  │   Worker N   │  │   Reaper Task     │
-│ (Tokio task) │  │ (Tokio task) │  │  (1 Tokio task)   │
-│              │  │              │  │                   │
-│ attempt_match│  │ attempt_match│  │ scans every 1000ms│
-│ on Notify or │  │ on Notify or │  │ resets stale      │
-│ 50ms tick    │  │ 50ms tick    │  │ Claimed players   │
-└──────────────┘  └──────────────┘  └───────────────────┘
-
+                             │ Arc clones distributed at spawn
+          ┌──────────────────┼──────────────────────┐
+          ▼                  ▼                       ▼
+┌──────────────────┐ ┌──────────────────┐ ┌───────────────────┐
+│    Worker 1      │ │    Worker N      │ │   Reaper Task     │
+│  (Tokio task)    │ │  (Tokio task)    │ │  (1 Tokio task)   │
+│                  │ │                  │ │                   │
+│  attempt_match   │ │  attempt_match   │ │ scans every 1000ms│
+│  on Notify or    │ │  on Notify or    │ │ resets stale      │
+│  50ms tick       │ │  50ms tick       │ │ Claimed players   │
+└──────────────────┘ └──────────────────┘ └───────────────────┘
+```
 ---
 
 ## Player Storage
