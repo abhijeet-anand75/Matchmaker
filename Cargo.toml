@@ -1,0 +1,77 @@
+[package]
+name = "matchmaker"
+version = "0.1.0"
+edition = "2021"
+authors = ["Eterna Labs Assignment"]
+description = "High-performance 5v5 real-time competitive matchmaking engine"
+readme = "README.md"
+
+[[bin]]
+name = "matchmaker"
+path = "src/main.rs"
+
+[lib]
+name = "matchmaker"
+path = "src/lib.rs"
+
+[dependencies]
+
+tokio = { version = "1.37", features = ["full"] }
+
+
+axum = { version = "0.7", features = ["json"] }
+
+
+dashmap = { version = "6.0", features = ["serde"] }
+
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+
+
+uuid = { version = "1.8", features = ["v4", "serde"] }
+
+
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+
+dotenvy = { version = "0.15" }
+
+
+thiserror = { version = "1.0" }
+
+
+tokio-util = { version = "0.7", features = ["rt"] }
+
+
+tower = { version = "0.5", features = ["timeout", "util"] }
+tower-http = { version = "0.5", features = ["trace", "timeout"] }
+
+[dev-dependencies]
+
+reqwest = { version = "0.12", features = ["json"] }
+proptest = { version = "1.4" }
+
+
+tokio = { version = "1.37", features = ["full", "test-util"] }
+serial_test = "3.5.0"
+
+[profile.release]
+# Link-time optimization — reduces binary size, improves inlining across crates
+lto = "thin"
+# Single codegen unit — maximizes inlining at cost of compile time
+codegen-units = 1
+# Abort on panic in release — no unwinding overhead, smaller binary
+panic = "abort"
+
+opt-level = 3
+
+[profile.dev]
+
+opt-level = 0
+debug = true
+
+[profile.test]
+# Tests need some optimization to run concurrency stress cases in reasonable time
+opt-level = 2
