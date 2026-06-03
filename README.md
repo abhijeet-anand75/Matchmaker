@@ -144,29 +144,45 @@ The matchmaking window expands as players wait longer, ensuring fairness first a
 ```mermaid
 flowchart LR
 
-    subgraph Workers
-        W1["notify.notified()"]
-        W2["tick()"]
-        W3["attempt_match()"]
-        W4["shutdown()"]
+    subgraph Workers["Workers (WORKER_COUNT Tokio tasks)"]
 
-        W1 --> W3
-        W2 --> W3
-        W4 --> End1["Worker Exit"]
+        Notify["notify.notified()"]
+        Tick["tick()"]
+        Shutdown["shutdown()"]
+
+        Attempt["attempt_match()"]
+        Break["break"]
+
+        Notify --> Attempt
+        Tick --> Attempt
+        Shutdown --> Break
+
+        State["WorkerState<br/>tracks consecutive failures<br/>per seed for throughput guard"]
+
+        Attempt -.uses.-> State
     end
 
-    subgraph Reaper
-        R1["Periodic Scan"]
-        R2["Find Stale Claimed Players"]
-        R3["CAS: Claimed → Waiting"]
-        R4["Recover Metrics"]
+    subgraph Reaper["Reaper (1 Tokio task)"]
 
-        R1 --> R2
-        R2 --> R3
-        R3 --> R4
+        Interval["every REAPER_INTERVAL_MS"]
+
+        Scan["scan_all_players()"]
+
+        Check["state == Claimed<br/>AND<br/>age > STALE_CLAIM_TIMEOUT_MS"]
+
+        Recover["CAS(Claimed → Waiting)"]
+
+        Log["log recovery event"]
+
+        Metric["metrics.stale_claims_recovered++"]
+
+        Interval --> Scan
+        Scan --> Check
+        Check --> Recover
+        Recover --> Log
+        Log --> Metric
     end
 ```
-
 ## Repository Structure
 
 ```text
