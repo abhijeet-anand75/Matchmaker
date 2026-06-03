@@ -119,48 +119,18 @@ The matchmaking window expands as players wait longer, ensuring fairness first a
 
 ### Worker and Reaper
 
-```mermaid
-flowchart LR
-
-    subgraph Workers["Workers (WORKER_COUNT Tokio tasks)"]
-
-        Notify["notify.notified()"]
-        Tick["tick()"]
-        Shutdown["shutdown()"]
-
-        Attempt["attempt_match()"]
-        Break["break"]
-
-        Notify --> Attempt
-        Tick --> Attempt
-        Shutdown --> Break
-
-        State["WorkerState<br/>tracks consecutive failures<br/>per seed for throughput guard"]
-
-        Attempt -.uses.-> State
-    end
-
-    subgraph Reaper["Reaper (1 Tokio task)"]
-
-        Interval["every REAPER_INTERVAL_MS"]
-
-        Scan["scan_all_players()"]
-
-        Check["state == Claimed<br/>AND<br/>age > STALE_CLAIM_TIMEOUT_MS"]
-
-        Recover["CAS(Claimed → Waiting)"]
-
-        Log["log recovery event"]
-
-        Metric["metrics.stale_claims_recovered++"]
-
-        Interval --> Scan
-        Scan --> Check
-        Check --> Recover
-        Recover --> Log
-        Log --> Metric
-    end
-```
+<pre>
+Workers (WORKER_COUNT Tokio tasks)          Reaper (1 Tokio task)
+│                                           │
+├── select! {                               ├── every REAPER_INTERVAL_MS:
+│     notify.notified() → attempt_match     │     scan all_players()
+│     tick()            → attempt_match     │     if state==Claimed AND
+│     shutdown()        → break             │     age &gt; STALE_CLAIM_TIMEOUT_MS:
+│   }                                       │       CAS(Claimed→Waiting)
+│                                           │       log recovery event
+└── WorkerState tracks consecutive          └── metrics.stale_claims_recovered++
+    failures per seed for throughput guard
+</pre>
 ## Repository Structure
 
 ```text
