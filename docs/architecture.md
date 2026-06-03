@@ -94,6 +94,7 @@ either structure directly.
 ---
 
 ## Player State Machine
+```
                      ┌─────────────────────────────────────┐
                      │                                     │
                      ▼                                     │
@@ -102,6 +103,7 @@ Enqueued ──► Waiting(0) ──CAS──► Claimed(1) ──CAS──► M
 │                    └──CAS──► Evicted(3)
 │
 └──── CAS (rollback / Reaper) ────┘
+```
 
 ### Valid Transitions
 
