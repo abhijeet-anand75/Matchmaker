@@ -6,6 +6,7 @@
 //! - Pool seeding utilities
 //! - Full Axum test server builder
 //! - Assertion helpers for match validation
+#![allow(dead_code)]
 
 use std::sync::Arc;
 
