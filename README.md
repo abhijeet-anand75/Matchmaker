@@ -53,52 +53,21 @@ rewrite.
 ## Architecture
 
 ## Request Flow
-
-```text
-+----------------------+
-|     HTTP Client      |
-+----------------------+
-           |
-           v
-+----------------------+
-|     Axum Router      |
-+----------------------+
-| POST   /enqueue      |
-| DELETE /enqueue/:id  |
-| GET    /health       |
-| GET    /metrics      |
-| GET    /matches      |
-+----------------------+
-           |
-           v
-+----------------------+
-|   MatchmakerCore     |
-+----------------------+
-           |
-    +------+------+------+
-    |      |      |      |
-    v      v      v      v
-
-+----------------------+   +----------------------+
-|      PlayerPool      |   |     Arc<Metrics>     |
-+----------------------+   +----------------------+
-| DashMap<Uuid,        |   | Atomic Counters      |
-| Arc<Player>>         |   +----------------------+
-| (Primary Store)      |
-|                      |
-| RwLock<BTreeMap<     |
-| (u32,Uuid),          |
-| Weak<Player>>>       |
-| (Rating Index)       |
-+----------------------+
-
-+----------------------+   +----------------------+
-|      Arc<Notify>     |   | Arc<RwLock<VecDeque< |
-+----------------------+   |      Match>>>        |
-| Wake Signal          |   +----------------------+
-+----------------------+   | Match History        |
-                           +----------------------+
-```
+HTTP Client
+│
+▼
+Axum Router (POST /enqueue, DELETE /enqueue/:id,
+GET /health, GET /metrics, GET /matches)
+│
+▼
+MatchmakerCore
+├── PlayerPool
+│     ├── DashMap<Uuid, Arc<Player>>     primary store
+│     └── RwLock<BTreeMap<(u32,Uuid),    rating index
+│                  Weak<Player>>>
+├── Arc<Metrics>                          atomic counters
+├── Arc<Notify>                           wake signal
+└── Arc<RwLock<VecDeque<Match>>>          match history
 
 ### Request Flow
 
