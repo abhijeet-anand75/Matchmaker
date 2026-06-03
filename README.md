@@ -54,7 +54,7 @@ rewrite.
 
 ### Request Flow
 
-```mermaid
+```
 flowchart TD
 
     Client[HTTP Client]
