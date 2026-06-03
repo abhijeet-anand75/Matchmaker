@@ -55,7 +55,7 @@ rewrite.
 ### Request Flow
 
 
-<pre>
+```
 HTTP Client
 │
 ▼
@@ -64,12 +64,12 @@ Axum Router (POST /enqueue, DELETE /enqueue/:id, GET /health, GET /metrics, GET 
 ▼
 MatchmakerCore
 ├── PlayerPool
-│   ├── DashMap&lt;Uuid, Arc&lt;Player&gt;&gt;          primary store
-│   └── RwLock&lt;BTreeMap&lt;(u32,Uuid), Weak&lt;Player&gt;&gt;&gt;   rating index
-├── Arc&lt;Metrics&gt;                            atomic counters
-├── Arc&lt;Notify&gt;                             wake signal
-└── Arc&lt;RwLock&lt;VecDeque&lt;Match&gt;&gt;&gt;            match history
-</pre>
+│   ├── DashMap<Uuid, Arc<Player>>          primary store
+│   └── RwLock<BTreeMap<(u32,Uuid), Weak<Player>>>   rating index
+├── Arc<Metrics>                            atomic counters
+├── Arc<Notify>                             wake signal
+└── Arc<RwLock<VecDeque<Match>>>            match history
+```
 
 
 ### Matchmaking Flow
