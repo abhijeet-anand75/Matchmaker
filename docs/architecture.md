@@ -125,6 +125,7 @@ simultaneously.
 ---
 
 ## Matchmaking Pipeline
+```
 Worker wakes (Notify or 50ms tick)
 │
 ├─ 1. SEED SELECTION
@@ -165,10 +166,11 @@ pool.remove() × 10: DashMap + BTreeMap remove
 push MatchRecord to history
 update all atomic metrics counters
 → MatchAttemptResult::Success
-
+```
 ---
 
 ## Worker and Reaper
+```
 ┌─────────────────────────────────────┐  ┌─────────────────────────────────────┐
 │   Workers (WORKER_COUNT Tokio tasks)│  │      Reaper (1 Tokio task)          │
 └──────────────────┬──────────────────┘  └──────────────────┬──────────────────┘
@@ -196,6 +198,8 @@ update all atomic metrics counters
 │  throughput guard    │
 └──────────────────────┘
 
+```
+
 ### Why CAS and Not store() in Reaper
 
 If the Reaper used `store(Waiting)` instead of `compare_exchange`:
@@ -213,6 +217,8 @@ STALE_CLAIM_TIMEOUT_MS + REAPER_INTERVAL_MS = 500ms + 1000ms = 1500ms
 ---
 
 ## Graceful Shutdown
+
+```
 SIGTERM / SIGINT received
 │
 ▼
@@ -224,7 +230,7 @@ CancellationToken::cancel()
 ├── JoinSet::join_next() with 10s timeout
 ├── Final metrics snapshot logged
 └── Process exits 0
-
+```
 ---
 
 ## Metrics Architecture
