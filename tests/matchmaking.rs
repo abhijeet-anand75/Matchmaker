@@ -21,12 +21,12 @@ use uuid::Uuid;
 use matchmaker::engine::bucket::PlayerPool;
 use matchmaker::engine::matcher::{attempt_match, MatchAttemptResult, WorkerState};
 use matchmaker::engine::relaxation::{relaxation_stage, relaxation_window, scan_bounds};
-use matchmaker::models::{Player, player_state};
+use matchmaker::models::{player_state, Player};
 
 use common::{
     assert_match_valid, assert_no_duplicates, assert_team_delta_is_optimal, clear_env,
-    default_config, fast_config, make_core, make_match_ready_players,
-    make_player, make_worker_ctx, seed_uniform,
+    default_config, fast_config, make_core, make_match_ready_players, make_player, make_worker_ctx,
+    seed_uniform,
 };
 
 // ── Basic match formation ─────────────────────────────────────────────────────
@@ -102,11 +102,8 @@ async fn test_all_players_removed_from_pool_after_match() {
     );
 }
 
-
-
 #[tokio::test]
 async fn test_matched_players_state_is_matched() {
-    
     use std::sync::Arc;
 
     // Build the pool and engine manually so we hold the SAME Arc<Player>
@@ -187,7 +184,11 @@ async fn test_multiple_sequential_matches_all_valid() {
     }
 
     assert_eq!(matches.len(), 3, "Expected 3 sequential matches");
-    assert_eq!(core.players_waiting(), 0, "Pool must be empty after 3 matches");
+    assert_eq!(
+        core.players_waiting(),
+        0,
+        "Pool must be empty after 3 matches"
+    );
 
     for m in &matches {
         assert_match_valid(m);
@@ -241,7 +242,10 @@ async fn test_single_player_returns_insufficient_candidates() {
 
     let result = attempt_match(&ctx, &mut state);
     assert!(
-        matches!(result, MatchAttemptResult::InsufficientCandidates { found: 1, .. }),
+        matches!(
+            result,
+            MatchAttemptResult::InsufficientCandidates { found: 1, .. }
+        ),
         "Single player must return InsufficientCandidates"
     );
 }
@@ -353,8 +357,7 @@ async fn test_relaxation_window_stage_1_fresh_player() {
 
     let window = relaxation_window(player.join_timestamp, &config);
     assert_eq!(
-        window,
-        config.relaxation_stage_1_delta,
+        window, config.relaxation_stage_1_delta,
         "Brand new player must get Stage 1 window"
     );
     assert_eq!(relaxation_stage(player.join_timestamp, &config), 1);
@@ -433,7 +436,10 @@ async fn test_outlier_player_matched_at_starvation_floor() {
     // Use fast config so Stage 5 is reached in ~400ms
     let config = fast_config();
     let metrics = Arc::new(matchmaker::metrics::Metrics::new());
-    let core = Arc::new(MatchmakerCore::new(Arc::clone(&config), Arc::clone(&metrics)));
+    let core = Arc::new(MatchmakerCore::new(
+        Arc::clone(&config),
+        Arc::clone(&metrics),
+    ));
     let ctx = make_worker_ctx(&core, 1);
     let mut state = WorkerState::new();
 
@@ -467,8 +473,7 @@ async fn test_outlier_player_matched_at_starvation_floor() {
         &config,
     );
     assert_eq!(
-        window,
-        config.relaxation_stage_5_delta,
+        window, config.relaxation_stage_5_delta,
         "Outlier must be at Stage 5 window after waiting"
     );
 
@@ -480,11 +485,7 @@ async fn test_outlier_player_matched_at_starvation_floor() {
         result
     );
 
-    assert_eq!(
-        core.players_waiting(),
-        0,
-        "All players must be matched"
-    );
+    assert_eq!(core.players_waiting(), 0, "All players must be matched");
 }
 
 // ── Duplicate prevention ──────────────────────────────────────────────────────
@@ -610,4 +611,3 @@ fn test_scan_bounds_no_overflow_at_max_rating() {
 }
 
 // ── Helper import for outlier test ────────────────────────────────────────────
-

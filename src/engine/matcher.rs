@@ -28,10 +28,10 @@
 //!   raced and this worker couldn't secure 10. Claims rolled back. Worker sleeps.
 //! - [`MatchAttemptResult::Success`]: Match formed. Metrics updated. Result stored.
 
-use std::sync::Arc;
-use std::time::SystemTime;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::RwLock;
+use std::time::SystemTime;
 
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ use crate::engine::relaxation::scan_bounds;
 use crate::metrics::Metrics;
 use crate::models::{Match, Player, PlayerSnapshot, Team};
 
-//  Worker context 
+//  Worker context
 
 /// All shared state a worker needs to perform a match attempt.
 ///
@@ -71,7 +71,7 @@ pub struct WorkerContext {
     pub match_history_limit: usize,
 }
 
-//  Result types 
+//  Result types
 
 /// The outcome of a single match attempt by one worker.
 #[derive(Debug)]
@@ -93,13 +93,10 @@ pub enum MatchAttemptResult {
 
     /// Enough candidates were found but CAS contention prevented this worker
     /// from claiming 10 players. All partial claims have been rolled back.
-    ClaimFailed {
-        claimed: usize,
-        needed: usize,
-    },
+    ClaimFailed { claimed: usize, needed: usize },
 }
 
-//  Seed retry tracking 
+//  Seed retry tracking
 
 /// Per-worker mutable state for seed retry tracking.
 ///
@@ -144,7 +141,7 @@ impl Default for WorkerState {
     }
 }
 
-//  Constants 
+//  Constants
 
 /// Number of consecutive failures before skipping to an alternate seed.
 /// Prevents a single unsatisfiable player from monopolising all workers.
@@ -153,7 +150,7 @@ const SEED_RETRY_LIMIT: u32 = 3;
 /// Match history capacity — maximum records retained in memory.
 pub const MATCH_HISTORY_LIMIT: usize = 10_000;
 
-//  Core function 
+//  Core function
 /// Perform one complete match attempt.
 ///
 /// This is the hot path — called by every worker on every wake cycle.
@@ -170,25 +167,23 @@ pub const MATCH_HISTORY_LIMIT: usize = 10_000;
 /// 5. **Match creation**: Transition states, remove from pool, build record.
 /// 6. **Metrics update**: Atomic counter updates — no locking.
 pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttemptResult {
-    //  Phase 1: Seed Selection 
+    //  Phase 1: Seed Selection
 
     let seed = match select_seed(ctx, state) {
         Some(s) => s,
         None => return MatchAttemptResult::PoolEmpty,
     };
 
-    //  Phase 2: Candidate Discovery 
+    //  Phase 2: Candidate Discovery
 
-    let (min_rating, max_rating) =
-        scan_bounds(seed.skill_rating, seed.join_timestamp, &ctx.config);
+    let (min_rating, max_rating) = scan_bounds(seed.skill_rating, seed.join_timestamp, &ctx.config);
 
-    let stage = crate::engine::relaxation::relaxation_stage(
-        seed.join_timestamp,
-        &ctx.config,
-    );
+    let stage = crate::engine::relaxation::relaxation_stage(seed.join_timestamp, &ctx.config);
     let window = max_rating - min_rating;
 
-    ctx.metrics.worker_cycles_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    ctx.metrics
+        .worker_cycles_total
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     let candidates = ctx.pool.range_scan(min_rating, max_rating);
 
@@ -217,7 +212,7 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
         };
     }
 
-    //  Phase 3: Atomic Claiming 
+    //  Phase 3: Atomic Claiming
 
     let now_ms = unix_ms();
     let mut claimed: Vec<Arc<Player>> = Vec::with_capacity(MATCH_SIZE);
@@ -230,11 +225,9 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
         if candidate.try_claim(ctx.worker_id, now_ms) {
             claimed.push(Arc::clone(candidate));
         }
-        
     }
 
     if claimed.len() < MATCH_SIZE {
-       
         let claimed_count = claimed.len();
         for player in &claimed {
             player.release_claim();
@@ -259,20 +252,16 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
         };
     }
 
-   
-
-    //  Phase 4: Team Balancing 
+    //  Phase 4: Team Balancing
 
     let balance = exhaustive_balance(&claimed);
 
-    //  Phase 5: Match Creation 
+    //  Phase 5: Match Creation
 
-    
     for player in &claimed {
         player.mark_matched();
     }
 
-    
     let wait_times_ms: Vec<u64> = claimed
         .iter()
         .map(|p| p.matched_wait_ms().unwrap_or_else(|| p.wait_ms()))
@@ -282,8 +271,8 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
     let max_wait_ms = wait_times_ms.iter().copied().max().unwrap_or(0);
 
     let all_ratings: Vec<u32> = claimed.iter().map(|p| p.skill_rating).collect();
-    let skill_spread = all_ratings.iter().max().unwrap_or(&0)
-        - all_ratings.iter().min().unwrap_or(&0);
+    let skill_spread =
+        all_ratings.iter().max().unwrap_or(&0) - all_ratings.iter().min().unwrap_or(&0);
 
     // Build team snapshots.
     let team_a_snapshots: Vec<PlayerSnapshot> = balance
@@ -332,7 +321,7 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
         }
     }
 
-    //  Phase 6: Metrics Update 
+    //  Phase 6: Metrics Update
 
     update_metrics_on_success(&ctx.metrics, &completed_match, &wait_times_ms, skill_spread);
 
@@ -352,7 +341,7 @@ pub fn attempt_match(ctx: &WorkerContext, state: &mut WorkerState) -> MatchAttem
     MatchAttemptResult::Success(completed_match)
 }
 
-//  Seed selection 
+//  Seed selection
 
 /// Select the seed player for this match attempt.
 ///
@@ -367,7 +356,6 @@ fn select_seed(ctx: &WorkerContext, state: &WorkerState) -> Option<Arc<Player>> 
     if state.current_seed_id == Some(primary_seed.id)
         && state.consecutive_failures >= SEED_RETRY_LIMIT
     {
-        
         let (exclude_min, exclude_max) = scan_bounds(
             primary_seed.skill_rating,
             primary_seed.join_timestamp,
@@ -391,7 +379,7 @@ fn select_seed(ctx: &WorkerContext, state: &WorkerState) -> Option<Arc<Player>> 
     }
 }
 
-//  Metrics helpers 
+//  Metrics helpers
 
 /// Update all atomic metrics counters after a successful match.
 ///
@@ -431,7 +419,7 @@ fn update_metrics_on_success(
     metrics.team_delta_count.fetch_add(1, Relaxed);
 }
 
-//  Utility 
+//  Utility
 
 /// Returns the current Unix timestamp in milliseconds.
 ///
@@ -446,7 +434,7 @@ pub fn unix_ms() -> u64 {
         .as_millis() as u64
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -464,12 +452,18 @@ mod tests {
 
     fn clear_env() {
         for var in &[
-            "SERVER_PORT", "WORKER_COUNT", "WORKER_TICK_MS",
+            "SERVER_PORT",
+            "WORKER_COUNT",
+            "WORKER_TICK_MS",
             "STALE_CLAIM_TIMEOUT_MS",
-            "RELAXATION_STAGE_1_MS", "RELAXATION_STAGE_2_MS",
-            "RELAXATION_STAGE_3_MS", "RELAXATION_STAGE_4_MS",
-            "RELAXATION_STAGE_1_DELTA", "RELAXATION_STAGE_2_DELTA",
-            "RELAXATION_STAGE_3_DELTA", "RELAXATION_STAGE_4_DELTA",
+            "RELAXATION_STAGE_1_MS",
+            "RELAXATION_STAGE_2_MS",
+            "RELAXATION_STAGE_3_MS",
+            "RELAXATION_STAGE_4_MS",
+            "RELAXATION_STAGE_1_DELTA",
+            "RELAXATION_STAGE_2_DELTA",
+            "RELAXATION_STAGE_3_DELTA",
+            "RELAXATION_STAGE_4_DELTA",
             "RELAXATION_STAGE_5_DELTA",
         ] {
             std::env::remove_var(var);
@@ -497,10 +491,7 @@ mod tests {
 
     fn enqueue_players(pool: &PlayerPool, count: usize, base_rating: u32) {
         for i in 0..count {
-            let player = Arc::new(Player::new(
-                Uuid::new_v4(),
-                base_rating + i as u32,
-            ));
+            let player = Arc::new(Player::new(Uuid::new_v4(), base_rating + i as u32));
             pool.insert(player);
         }
     }
@@ -518,13 +509,16 @@ mod tests {
         let (ctx, pool) = make_ctx();
         let mut state = WorkerState::new();
 
-        
         enqueue_players(&pool, 9, 1000);
 
         let result = attempt_match(&ctx, &mut state);
         assert!(
-            matches!(result, MatchAttemptResult::InsufficientCandidates { found: 9, .. }),
-            "Expected InsufficientCandidates, got {:?}", result
+            matches!(
+                result,
+                MatchAttemptResult::InsufficientCandidates { found: 9, .. }
+            ),
+            "Expected InsufficientCandidates, got {:?}",
+            result
         );
     }
 
@@ -538,7 +532,8 @@ mod tests {
         let result = attempt_match(&ctx, &mut state);
         assert!(
             matches!(result, MatchAttemptResult::Success(_)),
-            "Expected Success, got {:?}", result
+            "Expected Success, got {:?}",
+            result
         );
 
         // Pool must be empty after match
@@ -633,7 +628,10 @@ mod tests {
 
         let mut match_count = 0;
         for _ in 0..3 {
-            if matches!(attempt_match(&ctx, &mut state), MatchAttemptResult::Success(_)) {
+            if matches!(
+                attempt_match(&ctx, &mut state),
+                MatchAttemptResult::Success(_)
+            ) {
                 match_count += 1;
             }
         }
@@ -669,7 +667,10 @@ mod tests {
         }
 
         let history_len = history.read().unwrap().len();
-        assert_eq!(history_len, 2, "History must be bounded to match_history_limit");
+        assert_eq!(
+            history_len, 2,
+            "History must be bounded to match_history_limit"
+        );
     }
 
     #[test]
@@ -694,7 +695,10 @@ mod tests {
     #[test]
     fn test_unix_ms_is_reasonable() {
         let ts = unix_ms();
-       
-        assert!(ts > 1_704_067_200_000, "unix_ms must return a plausible timestamp");
+
+        assert!(
+            ts > 1_704_067_200_000,
+            "unix_ms must return a plausible timestamp"
+        );
     }
 }

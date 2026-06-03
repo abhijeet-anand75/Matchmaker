@@ -9,7 +9,6 @@
 
 mod common;
 
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,18 +17,13 @@ use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use matchmaker::engine::matcher::{
-    attempt_match, unix_ms, MatchAttemptResult, WorkerState,
-};
+use matchmaker::engine::matcher::{attempt_match, unix_ms, MatchAttemptResult, WorkerState};
 use matchmaker::engine::MatchmakerCore;
 use matchmaker::metrics::Metrics;
-use matchmaker::models::{Player, player_state};
+use matchmaker::models::{player_state, Player};
 use matchmaker::workers::spawn_all;
 
-use common::{
-    assert_no_duplicates, clear_env, make_core,
-    make_worker_ctx, seed_uniform,
-};
+use common::{assert_no_duplicates, clear_env, make_core, make_worker_ctx, seed_uniform};
 
 // ── MatchAttemptResult variant tests ─────────────────────────────────────────
 
@@ -175,7 +169,10 @@ async fn test_concurrent_workers_no_duplicate_match() {
 
         handles.push(tokio::spawn(async move {
             let mut state = WorkerState::new();
-            if matches!(attempt_match(&ctx, &mut state), MatchAttemptResult::Success(_)) {
+            if matches!(
+                attempt_match(&ctx, &mut state),
+                MatchAttemptResult::Success(_)
+            ) {
                 wins.fetch_add(1, Ordering::Relaxed);
             }
         }));
@@ -280,7 +277,11 @@ async fn test_repeated_concurrent_matches_no_duplicates() {
     );
 
     assert_no_duplicates(&matches);
-    assert_eq!(core.players_waiting(), 0, "Pool must be empty after all matches");
+    assert_eq!(
+        core.players_waiting(),
+        0,
+        "Pool must be empty after all matches"
+    );
 }
 
 // ── Concurrent inserts and removes ───────────────────────────────────────────
@@ -378,9 +379,7 @@ async fn test_reaper_recovers_stale_claims_and_players_rematched() {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "400");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("config must be valid"),
-    );
+    let config = Arc::new(matchmaker::config::Config::from_env().expect("config must be valid"));
     let metrics = Arc::new(Metrics::new());
     let core = Arc::new(MatchmakerCore::new(
         Arc::clone(&config),
@@ -425,33 +424,28 @@ async fn test_reaper_recovers_stale_claims_and_players_rematched() {
 
     // Wait for Reaper to detect and recover stale claims.
     // Timeout = 8s: covers 1000ms reaper interval + match formation time.
-   let recovery_result = timeout(Duration::from_secs(8), async {
-    loop {
-        sleep(Duration::from_millis(100)).await;
-        // Accept WAITING (recovered, not yet matched) or
-        // MATCHED (recovered and already matched by workers)
-        // Both prove the Reaper worked correctly
-        let all_recovered = players
-            .iter()
-            .all(|p| {
+    let recovery_result = timeout(Duration::from_secs(8), async {
+        loop {
+            sleep(Duration::from_millis(100)).await;
+            // Accept WAITING (recovered, not yet matched) or
+            // MATCHED (recovered and already matched by workers)
+            // Both prove the Reaper worked correctly
+            let all_recovered = players.iter().all(|p| {
                 let s = p.state();
                 s == player_state::WAITING || s == player_state::MATCHED
             });
-        if all_recovered {
-            return true;
+            if all_recovered {
+                return true;
+            }
         }
-    }
-})
+    })
     .await;
 
     assert!(
         recovery_result.is_ok(),
         "Reaper must recover stale claims within 8 seconds. \
          Player states: {:?}",
-        players
-            .iter()
-            .map(|p| p.state())
-            .collect::<Vec<_>>()
+        players.iter().map(|p| p.state()).collect::<Vec<_>>()
     );
 
     // Verify reaper metrics
@@ -464,26 +458,27 @@ async fn test_reaper_recovers_stale_claims_and_players_rematched() {
 
     // Verify all players are Waiting with cleared claim fields
     for p in &players {
-    let state = p.state();
-    assert!(
-        state == player_state::WAITING || state == player_state::MATCHED,
-        "Player {} must be WAITING or MATCHED after Reaper recovery, got {}",
-        p.id, state
-    );
-    // If still waiting, claim fields must be cleared
-    if state == player_state::WAITING {
-        assert_eq!(
-            p.claimed_by.load(Ordering::Relaxed),
-            0,
-            "claimed_by must be cleared for waiting player"
+        let state = p.state();
+        assert!(
+            state == player_state::WAITING || state == player_state::MATCHED,
+            "Player {} must be WAITING or MATCHED after Reaper recovery, got {}",
+            p.id,
+            state
         );
-        assert_eq!(
-            p.claim_timestamp.load(Ordering::Relaxed),
-            0,
-            "claim_timestamp must be cleared for waiting player"
-        );
+        // If still waiting, claim fields must be cleared
+        if state == player_state::WAITING {
+            assert_eq!(
+                p.claimed_by.load(Ordering::Relaxed),
+                0,
+                "claimed_by must be cleared for waiting player"
+            );
+            assert_eq!(
+                p.claim_timestamp.load(Ordering::Relaxed),
+                0,
+                "claim_timestamp must be cleared for waiting player"
+            );
+        }
     }
-}
 
     // Workers are on a 20ms tick — they will now find 10 Waiting players
     // and form a match. Fire notify to wake a worker immediately.
@@ -541,9 +536,7 @@ async fn test_reaper_does_not_reset_fresh_claims() {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "400");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("config must be valid"),
-    );
+    let config = Arc::new(matchmaker::config::Config::from_env().expect("config must be valid"));
     let metrics = Arc::new(Metrics::new());
     let core = Arc::new(MatchmakerCore::new(
         Arc::clone(&config),
@@ -573,9 +566,7 @@ async fn test_reaper_does_not_reset_fresh_claims() {
     );
 
     assert_eq!(
-        metrics
-            .total_stale_claims_recovered
-            .load(Ordering::Relaxed),
+        metrics.total_stale_claims_recovered.load(Ordering::Relaxed),
         0,
         "No recoveries must be recorded for fresh claims"
     );
@@ -627,10 +618,7 @@ async fn test_release_claim_allows_reclaim() {
     // Worker 1 claims
     assert!(player.try_claim(1, unix_ms()));
     assert_eq!(player.state(), player_state::CLAIMED);
-    assert_eq!(
-        player.claimed_by.load(Ordering::Relaxed),
-        1
-    );
+    assert_eq!(player.claimed_by.load(Ordering::Relaxed), 1);
 
     // Worker 1 rolls back
     player.release_claim();
@@ -711,9 +699,7 @@ async fn test_full_worker_stack_forms_match_and_shuts_down() {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "400");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("config must be valid"),
-    );
+    let config = Arc::new(matchmaker::config::Config::from_env().expect("config must be valid"));
     let metrics = Arc::new(Metrics::new());
     let core = Arc::new(MatchmakerCore::new(
         Arc::clone(&config),
@@ -739,10 +725,7 @@ async fn test_full_worker_stack_forms_match_and_shuts_down() {
     })
     .await;
 
-    assert!(
-        result.is_ok(),
-        "Workers must form a match within 5 seconds"
-    );
+    assert!(result.is_ok(), "Workers must form a match within 5 seconds");
 
     // Verify match quality
     let snapshot = core.metrics_snapshot();
@@ -789,9 +772,7 @@ async fn test_multiple_workers_drain_pool_completely() {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "400");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("config must be valid"),
-    );
+    let config = Arc::new(matchmaker::config::Config::from_env().expect("config must be valid"));
     let metrics = Arc::new(Metrics::new());
     let core = Arc::new(MatchmakerCore::new(
         Arc::clone(&config),
@@ -817,10 +798,7 @@ async fn test_multiple_workers_drain_pool_completely() {
     })
     .await;
 
-    assert!(
-        result.is_ok(),
-        "All 10 matches must form within 10 seconds"
-    );
+    assert!(result.is_ok(), "All 10 matches must form within 10 seconds");
 
     let snapshot = core.metrics_snapshot();
     assert_eq!(snapshot.total_matches_created, 10);

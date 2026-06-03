@@ -47,7 +47,6 @@ pub fn clear_env() {
     }
 }
 
-
 /// Load the default config for tests without touching global env vars.
 pub fn default_config() -> Arc<Config> {
     Arc::new(Config {
@@ -102,7 +101,6 @@ pub fn make_fast_core() -> Arc<MatchmakerCore> {
     Arc::new(MatchmakerCore::new(config, metrics))
 }
 
-
 /// Build a `WorkerContext` from a `MatchmakerCore` for direct `attempt_match` calls.
 pub fn make_worker_ctx(core: &Arc<MatchmakerCore>, worker_id: u64) -> WorkerContext {
     core.make_worker_context(worker_id)
@@ -126,7 +124,10 @@ impl TestServer {
         clear_env();
         let config = Arc::new(Config::from_env().expect("config must be valid"));
         let metrics = Arc::new(Metrics::new());
-        let core = Arc::new(MatchmakerCore::new(Arc::clone(&config), Arc::clone(&metrics)));
+        let core = Arc::new(MatchmakerCore::new(
+            Arc::clone(&config),
+            Arc::clone(&metrics),
+        ));
         let router = create_router(Arc::clone(&core));
 
         // Bind to port 0 — OS assigns a random available port.
@@ -235,9 +236,7 @@ pub fn make_players_spread(count: usize, min_rating: u32, max_rating: u32) -> Ve
 /// Create 10 players suitable for an immediate match at the given base rating.
 /// Ratings are within ±25 of `base_rating` — within Stage 1 window (±50).
 pub fn make_match_ready_players(base_rating: u32) -> Vec<Arc<Player>> {
-    (0..10)
-        .map(|i| make_player(base_rating + i * 5))
-        .collect()
+    (0..10).map(|i| make_player(base_rating + i * 5)).collect()
 }
 
 // ── Pool seeding ──────────────────────────────────────────────────────────────
@@ -276,10 +275,8 @@ pub fn assert_match_valid(m: &Match) {
         "team_b must have exactly 5 players"
     );
 
-    let a_ids: std::collections::HashSet<Uuid> =
-        m.team_a.players.iter().map(|p| p.id).collect();
-    let b_ids: std::collections::HashSet<Uuid> =
-        m.team_b.players.iter().map(|p| p.id).collect();
+    let a_ids: std::collections::HashSet<Uuid> = m.team_a.players.iter().map(|p| p.id).collect();
+    let b_ids: std::collections::HashSet<Uuid> = m.team_b.players.iter().map(|p| p.id).collect();
 
     assert!(
         a_ids.is_disjoint(&b_ids),

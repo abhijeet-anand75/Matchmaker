@@ -31,7 +31,7 @@ use std::time::Instant;
 
 use crate::config::Config;
 
-//  Core function 
+//  Core function
 
 /// Compute the current acceptable MMR half-width for a waiting player.
 ///
@@ -112,18 +112,16 @@ pub fn relaxation_stage(join_timestamp: Instant, config: &Config) -> u8 {
 /// # Returns
 ///
 /// `(min_rating, max_rating)` — inclusive bounds for the rating index scan.
-pub fn scan_bounds(
-    skill_rating: u32,
-    join_timestamp: Instant,
-    config: &Config,
-) -> (u32, u32) {
+pub fn scan_bounds(skill_rating: u32, join_timestamp: Instant, config: &Config) -> (u32, u32) {
     let window = relaxation_window(join_timestamp, config);
     let min_rating = skill_rating.saturating_sub(window);
-    let max_rating = skill_rating.saturating_add(window).min(crate::engine::bucket::MAX_SKILL_RATING);
+    let max_rating = skill_rating
+        .saturating_add(window)
+        .min(crate::engine::bucket::MAX_SKILL_RATING);
     (min_rating, max_rating)
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -165,8 +163,7 @@ mod tests {
         // Brand new player — 0ms elapsed
         let window = relaxation_window(Instant::now(), &config);
         assert_eq!(
-            window,
-            config.relaxation_stage_1_delta,
+            window, config.relaxation_stage_1_delta,
             "Fresh player must get Stage 1 delta"
         );
     }
@@ -187,8 +184,7 @@ mod tests {
         let wait = Duration::from_millis(config.relaxation_stage_1_ms);
         let window = relaxation_window(aged_instant(wait), &config);
         assert_eq!(
-            window,
-            config.relaxation_stage_2_delta,
+            window, config.relaxation_stage_2_delta,
             "At Stage 1 threshold must enter Stage 2"
         );
     }
@@ -216,8 +212,7 @@ mod tests {
         let wait = Duration::from_millis(config.relaxation_stage_4_ms + 10_000);
         let window = relaxation_window(aged_instant(wait), &config);
         assert_eq!(
-            window,
-            config.relaxation_stage_5_delta,
+            window, config.relaxation_stage_5_delta,
             "Long-waiting player must reach starvation floor"
         );
     }
@@ -264,9 +259,7 @@ mod tests {
         let s4 = aged_instant(Duration::from_millis(config.relaxation_stage_3_ms));
         assert_eq!(relaxation_stage(s4, &config), 4);
 
-        let s5 = aged_instant(Duration::from_millis(
-            config.relaxation_stage_4_ms + 1_000,
-        ));
+        let s5 = aged_instant(Duration::from_millis(config.relaxation_stage_4_ms + 1_000));
         assert_eq!(relaxation_stage(s5, &config), 5);
     }
 

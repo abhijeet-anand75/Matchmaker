@@ -19,7 +19,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-//  Player state constants 
+//  Player state constants
 
 /// Typed constants for the `Player.state` atomic field.
 ///
@@ -36,7 +36,7 @@ pub mod player_state {
     pub const EVICTED: u8 = 3;
 }
 
-//  Player 
+//  Player
 
 /// A player waiting in the matchmaking queue.
 ///
@@ -192,7 +192,7 @@ impl Player {
                 .expect("matched_at mutex is never poisoned");
             *guard = Some(now);
         }
-        
+
         self.state
             .compare_exchange(
                 player_state::CLAIMED,
@@ -234,14 +234,9 @@ impl Player {
             .matched_at
             .lock()
             .expect("matched_at mutex is never poisoned");
-        guard.map(|matched| {
-            matched
-                .duration_since(self.join_timestamp)
-                .as_millis() as u64
-        })
+        guard.map(|matched| matched.duration_since(self.join_timestamp).as_millis() as u64)
     }
 }
-
 
 impl std::fmt::Debug for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -250,19 +245,15 @@ impl std::fmt::Debug for Player {
             .field("skill_rating", &self.skill_rating)
             .field("state", &self.state.load(Ordering::Relaxed))
             .field("claimed_by", &self.claimed_by.load(Ordering::Relaxed))
-            .field(
-                "wait_ms",
-                &self.join_timestamp.elapsed().as_millis(),
-            )
+            .field("wait_ms", &self.join_timestamp.elapsed().as_millis())
             .finish()
     }
 }
 
-
 unsafe impl Send for Player {}
 unsafe impl Sync for Player {}
 
-//  PlayerSnapshot 
+//  PlayerSnapshot
 
 /// An immutable snapshot of a player's data at the moment of match formation.
 ///
@@ -290,7 +281,7 @@ impl PlayerSnapshot {
     }
 }
 
-//  Team 
+//  Team
 
 /// One side of a formed match — five players.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -317,7 +308,7 @@ impl Team {
     }
 }
 
-//  Match 
+//  Match
 
 /// A completed match record — two teams of five players.
 ///
@@ -381,7 +372,7 @@ impl Match {
     }
 }
 
-//  API request / response DTOs 
+//  API request / response DTOs
 
 /// Request body for `POST /enqueue`.
 #[derive(Debug, Deserialize)]
@@ -432,7 +423,7 @@ impl ErrorResponse {
     }
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {

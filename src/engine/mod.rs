@@ -42,7 +42,7 @@ use crate::engine::matcher::{WorkerContext, MATCH_HISTORY_LIMIT};
 use crate::metrics::Metrics;
 use crate::models::{Match, Player};
 
-//  Enqueue errors 
+//  Enqueue errors
 
 /// Errors that can occur when a player attempts to join the queue.
 #[derive(Debug, thiserror::Error)]
@@ -64,7 +64,7 @@ pub enum CancelError {
     CurrentlyBeingMatched(Uuid),
 }
 
-//  MatchmakerCore 
+//  MatchmakerCore
 
 /// The top-level matchmaking engine.
 ///
@@ -114,7 +114,7 @@ impl MatchmakerCore {
         }
     }
 
-    //  Enqueue 
+    //  Enqueue
 
     /// Add a player to the matchmaking queue.
     ///
@@ -128,9 +128,11 @@ impl MatchmakerCore {
     pub fn enqueue(&self, id: Uuid, skill_rating: u32) -> Result<usize, EnqueueError> {
         use crate::engine::bucket::MAX_SKILL_RATING;
 
-        
         if skill_rating > MAX_SKILL_RATING {
-            return Err(EnqueueError::InvalidSkillRating(skill_rating, MAX_SKILL_RATING));
+            return Err(EnqueueError::InvalidSkillRating(
+                skill_rating,
+                MAX_SKILL_RATING,
+            ));
         }
 
         // Reject duplicate registrations.
@@ -149,7 +151,6 @@ impl MatchmakerCore {
             .current_queue_size
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        
         self.notify.notify_one();
 
         tracing::debug!(
@@ -175,10 +176,7 @@ impl MatchmakerCore {
     /// - [`CancelError::NotFound`] if the player ID is not in the pool.
     /// - [`CancelError::CurrentlyBeingMatched`] if the player is `Claimed`.
     pub fn cancel(&self, id: &Uuid) -> Result<(), CancelError> {
-        let player = self
-            .pool
-            .get(id)
-            .ok_or(CancelError::NotFound(*id))?;
+        let player = self.pool.get(id).ok_or(CancelError::NotFound(*id))?;
 
         // Attempt atomic transition Waiting → Evicted.
         if !player.try_evict() {
@@ -201,7 +199,7 @@ impl MatchmakerCore {
         Ok(())
     }
 
-    //  Match history 
+    //  Match history
 
     /// Return the most recent `limit` completed matches.
     ///
@@ -214,12 +212,7 @@ impl MatchmakerCore {
             .read()
             .expect("match_history RwLock is never poisoned");
 
-        history
-            .iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect()
+        history.iter().rev().take(limit).cloned().collect()
     }
 
     /// Total number of matches ever formed (from metrics counter).
@@ -229,7 +222,7 @@ impl MatchmakerCore {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    //  Metrics 
+    //  Metrics
 
     /// Capture a point-in-time snapshot of all metrics.
     ///
@@ -238,7 +231,7 @@ impl MatchmakerCore {
         self.metrics.snapshot()
     }
 
-    //  Health 
+    //  Health
 
     /// Current number of players waiting in the queue.
     pub fn players_waiting(&self) -> i64 {
@@ -252,7 +245,7 @@ impl MatchmakerCore {
         self.started_at.elapsed().as_secs()
     }
 
-    //  Internal accessors for workers 
+    //  Internal accessors for workers
     // These methods give workers direct Arc references to sub-components
     // without requiring them to hold an Arc<MatchmakerCore>.
 
@@ -297,7 +290,7 @@ impl MatchmakerCore {
     }
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -353,7 +346,10 @@ mod tests {
     fn test_enqueue_invalid_skill_rating() {
         let core = make_core();
         let result = core.enqueue(Uuid::new_v4(), 9999);
-        assert!(matches!(result, Err(EnqueueError::InvalidSkillRating(_, _))));
+        assert!(matches!(
+            result,
+            Err(EnqueueError::InvalidSkillRating(_, _))
+        ));
     }
 
     #[test]
@@ -430,7 +426,7 @@ mod tests {
     fn test_uptime_is_non_zero() {
         let core = make_core();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         let _ = core.uptime_secs();
     }
 
@@ -446,12 +442,10 @@ mod tests {
         let core = make_core();
         let notify = core.notify();
 
-        
         let notified = notify.notified();
 
         core.enqueue(Uuid::new_v4(), 1000).unwrap();
 
-        
         drop(notified);
         assert!(Arc::strong_count(&notify) >= 1);
     }

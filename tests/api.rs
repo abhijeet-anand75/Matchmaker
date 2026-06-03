@@ -124,11 +124,7 @@ async fn test_enqueue_skill_rating_at_boundary_3000_returns_200() {
 async fn test_enqueue_skill_rating_zero_returns_200() {
     let server = TestServer::start().await;
     let resp = server.enqueue(Uuid::new_v4(), 0).await;
-    assert_eq!(
-        resp.status(),
-        200,
-        "skill_rating of 0 must be accepted"
-    );
+    assert_eq!(resp.status(), 200, "skill_rating of 0 must be accepted");
 }
 
 #[tokio::test]
@@ -143,11 +139,7 @@ async fn test_enqueue_malformed_json_returns_400() {
         .await
         .unwrap();
 
-    assert_eq!(
-        resp.status(),
-        400,
-        "Malformed JSON body must return 400"
-    );
+    assert_eq!(resp.status(), 400, "Malformed JSON body must return 400");
 }
 
 #[tokio::test]
@@ -179,11 +171,7 @@ async fn test_enqueue_missing_id_returns_422() {
         .await
         .unwrap();
 
-    assert_eq!(
-        resp.status(),
-        422,
-        "Missing id field must return 422"
-    );
+    assert_eq!(resp.status(), 422, "Missing id field must return 422");
 }
 
 #[tokio::test]
@@ -200,11 +188,7 @@ async fn test_enqueue_invalid_uuid_format_returns_422() {
         .await
         .unwrap();
 
-    assert_eq!(
-        resp.status(),
-        422,
-        "Invalid UUID format must return 422"
-    );
+    assert_eq!(resp.status(), 422, "Invalid UUID format must return 422");
 }
 
 // ── DELETE /enqueue/:player_id ────────────────────────────────────────────────
@@ -217,13 +201,14 @@ async fn test_cancel_queued_player_returns_200() {
     server.enqueue(id, 1000).await;
     let resp = server.cancel(id).await;
 
-    assert_eq!(resp.status(), 200, "Cancel of queued player must return 200");
+    assert_eq!(
+        resp.status(),
+        200,
+        "Cancel of queued player must return 200"
+    );
 
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(
-        body["player_id"].as_str().unwrap(),
-        id.to_string()
-    );
+    assert_eq!(body["player_id"].as_str().unwrap(), id.to_string());
     assert_eq!(body["status"].as_str().unwrap(), "cancelled");
 }
 
@@ -277,10 +262,7 @@ async fn test_cancel_already_matched_player_returns_404() {
 
     // Start workers to match the players
     let shutdown = CancellationToken::new();
-    let mut worker_set = spawn_all(
-        std::sync::Arc::clone(&server.core),
-        shutdown.clone(),
-    );
+    let mut worker_set = spawn_all(std::sync::Arc::clone(&server.core), shutdown.clone());
 
     // Wait for match to form
     let matched = timeout(Duration::from_secs(5), async {
@@ -500,10 +482,7 @@ async fn test_matches_response_structure_after_match() {
     }
 
     let shutdown = CancellationToken::new();
-    let mut worker_set = spawn_all(
-        std::sync::Arc::clone(&server.core),
-        shutdown.clone(),
-    );
+    let mut worker_set = spawn_all(std::sync::Arc::clone(&server.core), shutdown.clone());
 
     let matched = timeout(Duration::from_secs(5), async {
         loop {
@@ -523,10 +502,7 @@ async fn test_matches_response_structure_after_match() {
     let matches = body["matches"].as_array().unwrap();
 
     assert_eq!(matches.len(), 1, "One match must be in history");
-    assert_eq!(
-        body["total_matches_formed"].as_u64().unwrap(),
-        1
-    );
+    assert_eq!(body["total_matches_formed"].as_u64().unwrap(), 1);
 
     let m = &matches[0];
 
@@ -534,9 +510,18 @@ async fn test_matches_response_structure_after_match() {
     assert!(m["match_id"].as_str().is_some(), "match must have match_id");
     assert!(m["team_a"].is_object(), "match must have team_a");
     assert!(m["team_b"].is_object(), "match must have team_b");
-    assert!(m["team_delta"].as_u64().is_some(), "match must have team_delta");
-    assert!(m["skill_spread"].as_u64().is_some(), "match must have skill_spread");
-    assert!(m["avg_wait_ms"].as_u64().is_some(), "match must have avg_wait_ms");
+    assert!(
+        m["team_delta"].as_u64().is_some(),
+        "match must have team_delta"
+    );
+    assert!(
+        m["skill_spread"].as_u64().is_some(),
+        "match must have skill_spread"
+    );
+    assert!(
+        m["avg_wait_ms"].as_u64().is_some(),
+        "match must have avg_wait_ms"
+    );
 
     // Each team must have exactly 5 players
     let team_a = m["team_a"]["players"].as_array().unwrap();
@@ -568,10 +553,7 @@ async fn test_matches_limit_parameter_respected() {
 
     // Form 3 matches
     let shutdown = CancellationToken::new();
-    let mut worker_set = spawn_all(
-        std::sync::Arc::clone(&server.core),
-        shutdown.clone(),
-    );
+    let mut worker_set = spawn_all(std::sync::Arc::clone(&server.core), shutdown.clone());
 
     for i in 0..30u32 {
         server.enqueue(Uuid::new_v4(), 1000 + (i % 20)).await;
@@ -592,14 +574,12 @@ async fn test_matches_limit_parameter_respected() {
     while worker_set.join_next().await.is_some() {}
 
     // Request only 1
-    let body: serde_json::Value =
-        server.matches(Some(1)).await.json().await.unwrap();
+    let body: serde_json::Value = server.matches(Some(1)).await.json().await.unwrap();
     let returned = body["matches"].as_array().unwrap().len();
     assert_eq!(returned, 1, "limit=1 must return exactly 1 match");
 
     // Request all 3
-    let body: serde_json::Value =
-        server.matches(Some(3)).await.json().await.unwrap();
+    let body: serde_json::Value = server.matches(Some(3)).await.json().await.unwrap();
     let returned = body["matches"].as_array().unwrap().len();
     assert_eq!(returned, 3, "limit=3 must return all 3 matches");
 }
@@ -613,10 +593,7 @@ async fn test_matches_no_duplicate_player_ids_in_response() {
     }
 
     let shutdown = CancellationToken::new();
-    let mut worker_set = spawn_all(
-        std::sync::Arc::clone(&server.core),
-        shutdown.clone(),
-    );
+    let mut worker_set = spawn_all(std::sync::Arc::clone(&server.core), shutdown.clone());
 
     let matched = timeout(Duration::from_secs(5), async {
         loop {

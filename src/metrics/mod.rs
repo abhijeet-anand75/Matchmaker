@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-//  Metrics struct 
+//  Metrics struct
 
 /// All runtime metrics for the matchmaking service.
 ///
@@ -49,8 +49,6 @@ use serde::Serialize;
 ///   to support safe subtraction without underflow
 /// - **Accumulators** (`*_sum` + `*_count`): feed rolling average computation
 pub struct Metrics {
-    
-
     /// Total number of players who have ever joined the queue.
     pub total_players_enqueued: AtomicU64,
 
@@ -79,15 +77,13 @@ pub struct Metrics {
     /// A non-zero value indicates worker crashes or panics have occurred.
     pub total_stale_claims_recovered: AtomicU64,
 
-    //  Gauges 
-
+    //  Gauges
     /// Current number of players in the queue (all states).
     /// Incremented on enqueue, decremented on match or cancel.
     /// `AtomicI64` to allow safe `fetch_sub` without underflow panics.
     pub current_queue_size: AtomicI64,
 
-    //  Accumulators for rolling averages 
-
+    //  Accumulators for rolling averages
     /// Sum of all player wait times across all matches (milliseconds).
     /// Divide by `total_players_matched` to get average wait per player.
     pub total_wait_time_ms: AtomicU64,
@@ -133,60 +129,34 @@ impl Metrics {
     ///
     /// Computes rolling averages from accumulated sum/count pairs.
     pub fn snapshot(&self) -> MetricsSnapshot {
-        let total_players_matched = self
-            .total_players_matched
-            .load(Ordering::Relaxed);
+        let total_players_matched = self.total_players_matched.load(Ordering::Relaxed);
 
         let skill_spread_count = self.skill_spread_count.load(Ordering::Relaxed);
         let team_delta_count = self.team_delta_count.load(Ordering::Relaxed);
 
-        let avg_wait_ms = if total_players_matched > 0 {
-            self.total_wait_time_ms.load(Ordering::Relaxed) / total_players_matched
-        } else {
-            0
-        };
+        let avg_wait_ms = self.total_wait_time_ms.load(Ordering::Relaxed)
+            .checked_div(total_players_matched)
+            .unwrap_or(0);
 
-        let avg_skill_spread = if skill_spread_count > 0 {
-            self.skill_spread_sum.load(Ordering::Relaxed) / skill_spread_count
-        } else {
-            0
-        };
+        let avg_skill_spread = self.skill_spread_sum.load(Ordering::Relaxed)
+            .checked_div(skill_spread_count)
+            .unwrap_or(0);
 
-        let avg_team_delta = if team_delta_count > 0 {
-            self.team_delta_sum.load(Ordering::Relaxed) / team_delta_count
-        } else {
-            0
-        };
+        let avg_team_delta = self.team_delta_sum.load(Ordering::Relaxed)
+            .checked_div(team_delta_count)
+            .unwrap_or(0);
 
         MetricsSnapshot {
-            total_players_enqueued: self
-                .total_players_enqueued
-                .load(Ordering::Relaxed),
-            total_players_cancelled: self
-                .total_players_cancelled
-                .load(Ordering::Relaxed),
-            total_matches_created: self
-                .total_matches_created
-                .load(Ordering::Relaxed),
+            total_players_enqueued: self.total_players_enqueued.load(Ordering::Relaxed),
+            total_players_cancelled: self.total_players_cancelled.load(Ordering::Relaxed),
+            total_matches_created: self.total_matches_created.load(Ordering::Relaxed),
             total_players_matched,
-            match_attempts_insufficient: self
-                .match_attempts_insufficient
-                .load(Ordering::Relaxed),
-            match_attempts_claim_failed: self
-                .match_attempts_claim_failed
-                .load(Ordering::Relaxed),
-            worker_cycles_total: self
-                .worker_cycles_total
-                .load(Ordering::Relaxed),
-            total_stale_claims_recovered: self
-                .total_stale_claims_recovered
-                .load(Ordering::Relaxed),
-            current_queue_size: self
-                .current_queue_size
-                .load(Ordering::Relaxed),
-            total_wait_time_ms: self
-                .total_wait_time_ms
-                .load(Ordering::Relaxed),
+            match_attempts_insufficient: self.match_attempts_insufficient.load(Ordering::Relaxed),
+            match_attempts_claim_failed: self.match_attempts_claim_failed.load(Ordering::Relaxed),
+            worker_cycles_total: self.worker_cycles_total.load(Ordering::Relaxed),
+            total_stale_claims_recovered: self.total_stale_claims_recovered.load(Ordering::Relaxed),
+            current_queue_size: self.current_queue_size.load(Ordering::Relaxed),
+            total_wait_time_ms: self.total_wait_time_ms.load(Ordering::Relaxed),
             avg_wait_ms,
             avg_skill_spread,
             avg_team_delta,
@@ -199,8 +169,6 @@ impl Default for Metrics {
         Self::new()
     }
 }
-
-
 
 //  Snapshot
 
@@ -254,7 +222,7 @@ pub struct MetricsSnapshot {
     pub avg_team_delta: u64,
 }
 
-//  Constructor helper 
+//  Constructor helper
 
 impl Metrics {
     /// Construct a new `Arc<Metrics>` — the standard way to create metrics
@@ -264,7 +232,7 @@ impl Metrics {
     }
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -386,13 +354,11 @@ mod tests {
         let m = Arc::new(Metrics::new());
         let mut handles = Vec::new();
 
-        
         for _ in 0..10 {
             let m = Arc::clone(&m);
             handles.push(std::thread::spawn(move || {
                 for _ in 0..100 {
-                    m.total_players_enqueued
-                        .fetch_add(1, Ordering::Relaxed);
+                    m.total_players_enqueued.fetch_add(1, Ordering::Relaxed);
                 }
             }));
         }

@@ -63,7 +63,10 @@ async fn main() {
 
     // ── Core initialisation ───────────────────────────────────────────────────
     let metrics = Arc::new(Metrics::new());
-    let core = Arc::new(MatchmakerCore::new(Arc::clone(&config), Arc::clone(&metrics)));
+    let core = Arc::new(MatchmakerCore::new(
+        Arc::clone(&config),
+        Arc::clone(&metrics),
+    ));
 
     info!(
         worker_count = config.worker_count,
@@ -80,8 +83,7 @@ async fn main() {
 
     info!(
         workers = config.worker_count,
-        "Worker pool started ({} workers + 1 reaper)",
-        config.worker_count
+        "Worker pool started ({} workers + 1 reaper)", config.worker_count
     );
 
     // ── HTTP server ───────────────────────────────────────────────────────────
@@ -135,8 +137,7 @@ async fn main() {
 
     // Step 3: Join all worker tasks with a timeout.
     info!("Joining worker tasks (timeout: {WORKER_JOIN_TIMEOUT_SECS}s)");
-    let join_deadline =
-        tokio::time::Instant::now() + Duration::from_secs(WORKER_JOIN_TIMEOUT_SECS);
+    let join_deadline = tokio::time::Instant::now() + Duration::from_secs(WORKER_JOIN_TIMEOUT_SECS);
 
     loop {
         tokio::select! {

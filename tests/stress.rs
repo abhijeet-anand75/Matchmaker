@@ -47,18 +47,13 @@ fn make_stress_core(worker_count: usize) -> Arc<MatchmakerCore> {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "800");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("stress config must be valid"),
-    );
+    let config =
+        Arc::new(matchmaker::config::Config::from_env().expect("stress config must be valid"));
     let metrics = Arc::new(Metrics::new());
     Arc::new(MatchmakerCore::new(config, metrics))
 }
 
-async fn wait_for_matches(
-    core: &Arc<MatchmakerCore>,
-    expected: u64,
-    deadline: Duration,
-) -> bool {
+async fn wait_for_matches(core: &Arc<MatchmakerCore>, expected: u64, deadline: Duration) -> bool {
     timeout(deadline, async {
         loop {
             sleep(Duration::from_millis(50)).await;
@@ -71,10 +66,7 @@ async fn wait_for_matches(
     .unwrap_or(false)
 }
 
-async fn shutdown_workers(
-    shutdown: CancellationToken,
-    mut set: tokio::task::JoinSet<()>,
-) {
+async fn shutdown_workers(shutdown: CancellationToken, mut set: tokio::task::JoinSet<()>) {
     shutdown.cancel();
     let _ = timeout(Duration::from_secs(5), async {
         while set.join_next().await.is_some() {}
@@ -129,7 +121,8 @@ async fn test_stress_100_players_4_workers() {
         "Must form exactly {expected_matches} matches"
     );
     assert_eq!(
-        snapshot.total_players_matched, expected_matches * 10,
+        snapshot.total_players_matched,
+        expected_matches * 10,
         "Must match exactly {} players",
         expected_matches * 10
     );

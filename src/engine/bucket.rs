@@ -33,9 +33,9 @@ use std::sync::{Arc, RwLock, Weak};
 use dashmap::DashMap;
 use uuid::Uuid;
 
-use crate::models::{Player, player_state};
+use crate::models::{player_state, Player};
 
-//  Constants 
+//  Constants
 
 /// Maximum number of candidates returned by a single `range_scan` call.
 ///
@@ -48,7 +48,7 @@ pub const MAX_CANDIDATES_PER_SCAN: usize = 200;
 /// Maximum skill rating accepted during enqueue validation.
 pub const MAX_SKILL_RATING: u32 = 3000;
 
-//  PlayerPool 
+//  PlayerPool
 
 /// Thread-safe dual-structure player registry.
 ///
@@ -76,7 +76,7 @@ impl PlayerPool {
         }
     }
 
-    //  Write operations 
+    //  Write operations
 
     /// Insert a player into both the primary store and the rating index.
     ///
@@ -126,7 +126,7 @@ impl PlayerPool {
         Some(player)
     }
 
-    //  Read operations 
+    //  Read operations
 
     /// Scan for players within a skill rating range.
     ///
@@ -180,9 +180,7 @@ impl PlayerPool {
             // Only include players in Waiting state.
             // Players in Claimed, Matched, or Evicted state are mid-operation
             // or already done — do not include them as candidates.
-            if player.state.load(std::sync::atomic::Ordering::Acquire)
-                != player_state::WAITING
-            {
+            if player.state.load(std::sync::atomic::Ordering::Acquire) != player_state::WAITING {
                 continue;
             }
 
@@ -322,7 +320,7 @@ impl Default for PlayerPool {
     }
 }
 
-//  UUID sentinel 
+//  UUID sentinel
 
 /// Returns a UUID with all bytes set to `0xFF`.
 ///
@@ -334,7 +332,7 @@ fn uuid_max() -> Uuid {
     Uuid::from_bytes([0xFF; 16])
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -367,7 +365,6 @@ mod tests {
         assert!(!pool.contains(&id));
         assert_eq!(pool.len(), 0);
 
-        
         let results = pool.range_scan(900, 1100);
         assert!(results.is_empty());
     }
@@ -536,7 +533,6 @@ mod tests {
         pool.insert(Arc::clone(&p_low));
         pool.insert(Arc::clone(&p_high));
 
-        
         let result = pool.oldest_waiting_excluding_range(2800, 3000);
         assert!(result.is_some());
         assert_eq!(result.unwrap().id, id_low);

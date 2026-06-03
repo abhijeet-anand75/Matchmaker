@@ -42,7 +42,9 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
-use crate::engine::matcher::{attempt_match, unix_ms, MatchAttemptResult, WorkerContext, WorkerState};
+use crate::engine::matcher::{
+    attempt_match, unix_ms, MatchAttemptResult, WorkerContext, WorkerState,
+};
 use crate::engine::MatchmakerCore;
 use crate::metrics::Metrics;
 use crate::models::player_state;
@@ -70,10 +72,7 @@ const REAPER_INTERVAL_MS: u64 = 1_000;
 /// Workers are numbered 1..=`config.worker_count`. Worker ID `0` is reserved
 /// for the Reaper task. Worker IDs appear in logs and in `Player.claimed_by`
 /// for debugging stale claims.
-pub fn spawn_all(
-    core: Arc<MatchmakerCore>,
-    shutdown: CancellationToken,
-) -> JoinSet<()> {
+pub fn spawn_all(core: Arc<MatchmakerCore>, shutdown: CancellationToken) -> JoinSet<()> {
     let mut set = JoinSet::new();
 
     let worker_count = core.config().worker_count;
@@ -200,11 +199,7 @@ async fn run_worker(
                 // Normal condition — not enough compatible players yet.
                 debug!(
                     worker_id,
-                    found,
-                    window,
-                    seed_mmr,
-                    stage,
-                    "Insufficient candidates for match"
+                    found, window, seed_mmr, stage, "Insufficient candidates for match"
                 );
             }
 
@@ -213,9 +208,7 @@ async fn run_worker(
                 // All claims have been rolled back by attempt_match.
                 debug!(
                     worker_id,
-                    claimed,
-                    needed,
-                    "Claim failed — rolled back, will retry"
+                    claimed, needed, "Claim failed — rolled back, will retry"
                 );
             }
         }
@@ -264,8 +257,10 @@ async fn run_reaper(
     // Consume immediate first tick.
     tick.tick().await;
 
-    info!("Reaper started (interval={}ms, stale_timeout={}ms)",
-        REAPER_INTERVAL_MS, stale_claim_timeout_ms);
+    info!(
+        "Reaper started (interval={}ms, stale_timeout={}ms)",
+        REAPER_INTERVAL_MS, stale_claim_timeout_ms
+    );
 
     loop {
         tokio::select! {
@@ -320,9 +315,7 @@ async fn reaper_tick(
         let claim_age_ms = now_ms.saturating_sub(claim_ts);
 
         if claim_age_ms > stale_claim_timeout_ms {
-            let worker_id = player
-                .claimed_by
-                .load(std::sync::atomic::Ordering::Relaxed);
+            let worker_id = player.claimed_by.load(std::sync::atomic::Ordering::Relaxed);
 
             // Attempt CAS: Claimed → Waiting.
             // This is safe even if the worker completes normally — see module docs.
@@ -392,12 +385,18 @@ mod tests {
 
     fn clear_env() {
         for var in &[
-            "SERVER_PORT", "WORKER_COUNT", "WORKER_TICK_MS",
+            "SERVER_PORT",
+            "WORKER_COUNT",
+            "WORKER_TICK_MS",
             "STALE_CLAIM_TIMEOUT_MS",
-            "RELAXATION_STAGE_1_MS", "RELAXATION_STAGE_2_MS",
-            "RELAXATION_STAGE_3_MS", "RELAXATION_STAGE_4_MS",
-            "RELAXATION_STAGE_1_DELTA", "RELAXATION_STAGE_2_DELTA",
-            "RELAXATION_STAGE_3_DELTA", "RELAXATION_STAGE_4_DELTA",
+            "RELAXATION_STAGE_1_MS",
+            "RELAXATION_STAGE_2_MS",
+            "RELAXATION_STAGE_3_MS",
+            "RELAXATION_STAGE_4_MS",
+            "RELAXATION_STAGE_1_DELTA",
+            "RELAXATION_STAGE_2_DELTA",
+            "RELAXATION_STAGE_3_DELTA",
+            "RELAXATION_STAGE_4_DELTA",
             "RELAXATION_STAGE_5_DELTA",
         ] {
             std::env::remove_var(var);
@@ -435,11 +434,14 @@ mod tests {
             0
         );
         assert_eq!(
-            player.claim_timestamp.load(std::sync::atomic::Ordering::Relaxed),
+            player
+                .claim_timestamp
+                .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
         assert_eq!(
-            metrics.total_stale_claims_recovered
+            metrics
+                .total_stale_claims_recovered
                 .load(std::sync::atomic::Ordering::Relaxed),
             1
         );
@@ -462,7 +464,8 @@ mod tests {
             "Reaper must not touch fresh claims"
         );
         assert_eq!(
-            metrics.total_stale_claims_recovered
+            metrics
+                .total_stale_claims_recovered
                 .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
@@ -478,7 +481,8 @@ mod tests {
 
         assert_eq!(player.state(), player_state::WAITING);
         assert_eq!(
-            metrics.total_stale_claims_recovered
+            metrics
+                .total_stale_claims_recovered
                 .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
@@ -497,7 +501,8 @@ mod tests {
 
         assert_eq!(player.state(), player_state::MATCHED);
         assert_eq!(
-            metrics.total_stale_claims_recovered
+            metrics
+                .total_stale_claims_recovered
                 .load(std::sync::atomic::Ordering::Relaxed),
             0
         );
@@ -516,7 +521,8 @@ mod tests {
         reaper_tick(&pool, &metrics, 100).await;
 
         assert_eq!(
-            metrics.total_stale_claims_recovered
+            metrics
+                .total_stale_claims_recovered
                 .load(std::sync::atomic::Ordering::Relaxed),
             5,
             "Reaper must recover all stale claims"

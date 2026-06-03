@@ -47,9 +47,7 @@ fn ten_ratings() -> impl Strategy<Value = [u32; 10]> {
 
 fn clustered_ratings() -> impl Strategy<Value = [u32; 10]> {
     (500u32..2500u32).prop_flat_map(|center| {
-        prop::array::uniform10(
-            center.saturating_sub(200)..=(center + 200).min(3000),
-        )
+        prop::array::uniform10(center.saturating_sub(200)..=(center + 200).min(3000))
     })
 }
 
@@ -61,8 +59,8 @@ fn bimodal_ratings() -> impl Strategy<Value = [u32; 10]> {
         )
             .prop_map(|(lows, highs)| {
                 [
-                    lows[0], lows[1], lows[2], lows[3], lows[4],
-                    highs[0], highs[1], highs[2], highs[3], highs[4],
+                    lows[0], lows[1], lows[2], lows[3], lows[4], highs[0], highs[1], highs[2],
+                    highs[3], highs[4],
                 ]
             })
     })

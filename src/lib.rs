@@ -48,4 +48,4 @@ pub mod workers;
 pub use config::Config;
 pub use engine::MatchmakerCore;
 pub use metrics::Metrics;
-pub use models::{Match, Player, player_state};
+pub use models::{player_state, Match, Player};

@@ -377,9 +377,7 @@ async fn test_concurrent_match_metric_accuracy() {
     std::env::set_var("RELAXATION_STAGE_4_DELTA", "400");
     std::env::set_var("RELAXATION_STAGE_5_DELTA", "9999");
 
-    let config = Arc::new(
-        matchmaker::config::Config::from_env().expect("config must be valid"),
-    );
+    let config = Arc::new(matchmaker::config::Config::from_env().expect("config must be valid"));
     let metrics = Arc::new(Metrics::new());
     let core = Arc::new(MatchmakerCore::new(
         Arc::clone(&config),
@@ -517,8 +515,7 @@ async fn test_snapshot_serializes_to_valid_json() {
     }
 
     // Verify it round-trips through serde_json::Value
-    let value: serde_json::Value =
-        serde_json::from_str(&json).expect("JSON must be valid");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("JSON must be valid");
 
     assert!(value.is_object(), "Metrics JSON must be an object");
     assert_eq!(

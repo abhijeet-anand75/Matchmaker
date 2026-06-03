@@ -89,8 +89,7 @@ fn test_team_sizes_correct_for_varied_ratings() {
 fn test_all_input_players_appear_in_output() {
     clear_env();
     let players = make_players(&[800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700]);
-    let input_ids: std::collections::HashSet<Uuid> =
-        players.iter().map(|p| p.id).collect();
+    let input_ids: std::collections::HashSet<Uuid> = players.iter().map(|p| p.id).collect();
 
     let result = exhaustive_balance(&players);
     let output_ids: std::collections::HashSet<Uuid> = result
@@ -112,10 +111,8 @@ fn test_no_player_in_both_teams() {
     let players = make_players(&[1000; 10]);
     let result = exhaustive_balance(&players);
 
-    let a_ids: std::collections::HashSet<Uuid> =
-        result.team_a.iter().map(|p| p.id).collect();
-    let b_ids: std::collections::HashSet<Uuid> =
-        result.team_b.iter().map(|p| p.id).collect();
+    let a_ids: std::collections::HashSet<Uuid> = result.team_a.iter().map(|p| p.id).collect();
+    let b_ids: std::collections::HashSet<Uuid> = result.team_b.iter().map(|p| p.id).collect();
 
     assert!(
         a_ids.is_disjoint(&b_ids),
@@ -140,11 +137,12 @@ fn test_uniform_ratings_produce_zero_delta() {
 fn test_paired_equal_ratings_produce_zero_delta() {
     clear_env();
     // Each rating appears exactly twice — perfect pairing possible
-    let players = make_players(&[
-        1000, 1000, 1100, 1100, 1200, 1200, 1300, 1300, 1400, 1400,
-    ]);
+    let players = make_players(&[1000, 1000, 1100, 1100, 1200, 1200, 1300, 1300, 1400, 1400]);
     let result = exhaustive_balance(&players);
-    assert_eq!(result.team_delta, 0, "Paired ratings must achieve delta = 0");
+    assert_eq!(
+        result.team_delta, 0,
+        "Paired ratings must achieve delta = 0"
+    );
 }
 
 #[test]
@@ -238,8 +236,6 @@ fn test_bimodal_perfectly_balanced_achieves_zero_delta() {
     assert_eq!(result.team_b.len(), TEAM_SIZE);
 }
 
-
-
 #[test]
 fn test_all_different_ratings_is_optimal() {
     clear_env();
@@ -305,7 +301,9 @@ fn test_deterministic_delta_for_same_ratings() {
     clear_env();
     // Two independent calls with the same ratings must produce the same delta.
     // (UUIDs differ, so team composition may differ, but delta must be equal.)
-    let ratings = [1000u32, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900];
+    let ratings = [
+        1000u32, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
+    ];
     let p1 = make_players(&ratings);
     let p2 = make_players(&ratings);
 

@@ -38,10 +38,10 @@
 //! arbitrary but deterministic — identical inputs always produce identical
 //! outputs regardless of player ordering.
 
-use std::sync::Arc;
 use crate::models::Player;
+use std::sync::Arc;
 
-//  Constants 
+//  Constants
 
 /// Number of players in a complete match.
 pub const MATCH_SIZE: usize = 10;
@@ -49,7 +49,7 @@ pub const MATCH_SIZE: usize = 10;
 /// Number of players per team.
 pub const TEAM_SIZE: usize = 5;
 
-//  Balance result 
+//  Balance result
 
 /// The result of the exhaustive balance search.
 #[derive(Debug)]
@@ -65,7 +65,7 @@ pub struct BalanceResult {
     pub total_rating: u32,
 }
 
-//  Core algorithm 
+//  Core algorithm
 
 /// Find the optimal split of exactly 10 players into two balanced teams of 5.
 ///
@@ -137,7 +137,7 @@ pub fn exhaustive_balance(players: &[Arc<Player>]) -> BalanceResult {
     let mut team_a = Vec::with_capacity(TEAM_SIZE);
     let mut team_b = Vec::with_capacity(TEAM_SIZE);
 
-    for i in 0..MATCH_SIZE {
+    for (i, _) in players.iter().enumerate().take(MATCH_SIZE) {
         if (best_mask >> i) & 1 == 1 {
             team_a.push(Arc::clone(&players[i]));
         } else {
@@ -156,7 +156,7 @@ pub fn exhaustive_balance(players: &[Arc<Player>]) -> BalanceResult {
     }
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -204,7 +204,10 @@ mod tests {
     fn test_equal_ratings_produces_zero_delta() {
         let players = make_players([1000; 10]);
         let result = exhaustive_balance(&players);
-        assert_eq!(result.team_delta, 0, "All-equal ratings must produce delta=0");
+        assert_eq!(
+            result.team_delta, 0,
+            "All-equal ratings must produce delta=0"
+        );
         assert_eq!(result.team_a.len(), TEAM_SIZE);
         assert_eq!(result.team_b.len(), TEAM_SIZE);
     }
@@ -243,7 +246,10 @@ mod tests {
         // Team B: [1000, 1010, 1020, 1030, 1040] = 5100
         let players = make_players([1000, 1000, 1010, 1010, 1020, 1020, 1030, 1030, 1040, 1040]);
         let result = exhaustive_balance(&players);
-        assert_eq!(result.team_delta, 0, "Paired equal ratings must achieve delta=0");
+        assert_eq!(
+            result.team_delta, 0,
+            "Paired equal ratings must achieve delta=0"
+        );
         verify_optimal(&players, &result);
     }
 
@@ -338,8 +344,16 @@ mod tests {
         for input in &inputs {
             let players = make_players(*input);
             let result = exhaustive_balance(&players);
-            assert_eq!(result.team_a.len(), TEAM_SIZE, "team_a must have {TEAM_SIZE} players");
-            assert_eq!(result.team_b.len(), TEAM_SIZE, "team_b must have {TEAM_SIZE} players");
+            assert_eq!(
+                result.team_a.len(),
+                TEAM_SIZE,
+                "team_a must have {TEAM_SIZE} players"
+            );
+            assert_eq!(
+                result.team_b.len(),
+                TEAM_SIZE,
+                "team_b must have {TEAM_SIZE} players"
+            );
         }
     }
 

@@ -17,14 +17,14 @@ use crate::models::{
     EnqueueRequest, EnqueueResponse, ErrorResponse, HealthResponse, MatchesResponse,
 };
 
-//  App state 
+//  App state
 
 #[derive(Clone)]
 pub struct AppState {
     pub core: Arc<MatchmakerCore>,
 }
 
-//  Router 
+//  Router
 
 pub fn create_router(core: Arc<MatchmakerCore>) -> Router {
     let state = AppState { core };
@@ -38,7 +38,7 @@ pub fn create_router(core: Arc<MatchmakerCore>) -> Router {
         .with_state(state)
 }
 
-//  Error type 
+//  Error type
 
 pub enum AppError {
     BadRequest(String),
@@ -50,15 +50,9 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error, code) = match self {
-            AppError::BadRequest(msg) => {
-                (StatusCode::BAD_REQUEST, msg, "BAD_REQUEST")
-            }
-            AppError::Conflict(msg) => {
-                (StatusCode::CONFLICT, msg, "CONFLICT")
-            }
-            AppError::NotFound(msg) => {
-                (StatusCode::NOT_FOUND, msg, "NOT_FOUND")
-            }
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg, "BAD_REQUEST"),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg, "CONFLICT"),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg, "NOT_FOUND"),
             AppError::UnprocessableEntity(msg) => {
                 (StatusCode::UNPROCESSABLE_ENTITY, msg, "VALIDATION_ERROR")
             }
@@ -68,7 +62,7 @@ impl IntoResponse for AppError {
     }
 }
 
-//  Handlers 
+//  Handlers
 
 /// POST /enqueue — add a player to the matchmaking queue.
 async fn enqueue_handler(
@@ -113,9 +107,7 @@ async fn cancel_handler(
                 "status": "cancelled"
             })),
         )),
-        Err(CancelError::NotFound(id)) => {
-            Err(AppError::NotFound(format!("Player {id} not found")))
-        }
+        Err(CancelError::NotFound(id)) => Err(AppError::NotFound(format!("Player {id} not found"))),
         Err(CancelError::CurrentlyBeingMatched(id)) => Err(AppError::Conflict(format!(
             "Player {id} is currently being matched — retry shortly"
         ))),
@@ -132,9 +124,7 @@ async fn health_handler(State(state): State<AppState>) -> Json<HealthResponse> {
 }
 
 /// GET /metrics — operational metrics snapshot.
-async fn metrics_handler(
-    State(state): State<AppState>,
-) -> Json<crate::metrics::MetricsSnapshot> {
+async fn metrics_handler(State(state): State<AppState>) -> Json<crate::metrics::MetricsSnapshot> {
     Json(state.core.metrics_snapshot())
 }
 
@@ -164,7 +154,7 @@ async fn matches_handler(
     }))
 }
 
-//  Tests 
+//  Tests
 
 #[cfg(test)]
 mod tests {
@@ -177,12 +167,18 @@ mod tests {
 
     fn clear_env() {
         for var in &[
-            "SERVER_PORT", "WORKER_COUNT", "WORKER_TICK_MS",
+            "SERVER_PORT",
+            "WORKER_COUNT",
+            "WORKER_TICK_MS",
             "STALE_CLAIM_TIMEOUT_MS",
-            "RELAXATION_STAGE_1_MS", "RELAXATION_STAGE_2_MS",
-            "RELAXATION_STAGE_3_MS", "RELAXATION_STAGE_4_MS",
-            "RELAXATION_STAGE_1_DELTA", "RELAXATION_STAGE_2_DELTA",
-            "RELAXATION_STAGE_3_DELTA", "RELAXATION_STAGE_4_DELTA",
+            "RELAXATION_STAGE_1_MS",
+            "RELAXATION_STAGE_2_MS",
+            "RELAXATION_STAGE_3_MS",
+            "RELAXATION_STAGE_4_MS",
+            "RELAXATION_STAGE_1_DELTA",
+            "RELAXATION_STAGE_2_DELTA",
+            "RELAXATION_STAGE_3_DELTA",
+            "RELAXATION_STAGE_4_DELTA",
             "RELAXATION_STAGE_5_DELTA",
         ] {
             std::env::remove_var(var);
