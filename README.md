@@ -53,33 +53,22 @@ rewrite.
 ## Architecture
 
 ### Request Flow
+HTTP Client
+│
+▼
+Axum Router (POST /enqueue, DELETE /enqueue/:id,
+GET /health, GET /metrics, GET /matches)
+│
+▼
+MatchmakerCore
+├── PlayerPool
+│     ├── DashMap<Uuid, Arc<Player>>     primary store
+│     └── RwLock<BTreeMap<(u32,Uuid),    rating index
+│                  Weak<Player>>>
+├── Arc<Metrics>                          atomic counters
+├── Arc<Notify>                           wake signal
+└── Arc<RwLock<VecDeque<Match>>>          match history
 
-```
-flowchart TD
-
-    Client[HTTP Client]
-
-    Router[Axum Router]
-
-    Client --> Router
-
-    Router --> P1["POST /enqueue"]
-    Router --> P2["DELETE /enqueue/:id"]
-    Router --> P3["GET /health"]
-    Router --> P4["GET /metrics"]
-    Router --> P5["GET /matches"]
-
-    Router --> Core[MatchmakerCore]
-
-    Core --> Pool[PlayerPool]
-
-    Pool --> Store["DashMap<Uuid, Arc<Player>>"]
-    Pool --> Index["RwLock<BTreeMap<(u32,Uuid), Weak<Player>>>"]
-
-    Core --> Metrics["Arc<Metrics>"]
-    Core --> Notify["Arc<Notify>"]
-    Core --> History["Arc<RwLock<VecDeque<Match>>>"]
-```
 
 ### Matchmaking Flow
 
