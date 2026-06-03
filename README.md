@@ -119,18 +119,19 @@ The matchmaking window expands as players wait longer, ensuring fairness first a
 
 ### Worker and Reaper
 
-<pre>
+
+```
 Workers (WORKER_COUNT Tokio tasks)          Reaper (1 Tokio task)
 │                                           │
 ├── select! {                               ├── every REAPER_INTERVAL_MS:
 │     notify.notified() → attempt_match     │     scan all_players()
 │     tick()            → attempt_match     │     if state==Claimed AND
-│     shutdown()        → break             │     age &gt; STALE_CLAIM_TIMEOUT_MS:
+│     shutdown()        → break             │     age > STALE_CLAIM_TIMEOUT_MS:
 │   }                                       │       CAS(Claimed→Waiting)
 │                                           │       log recovery event
 └── WorkerState tracks consecutive          └── metrics.stale_claims_recovered++
     failures per seed for throughput guard
-</pre>
+```
 ## Repository Structure
 
 ```text
