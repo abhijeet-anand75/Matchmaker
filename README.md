@@ -54,161 +54,158 @@ rewrite.
 
 ### Request Flow
 
-┌─────────────────────────────────────────────────────────────┐
-│                        HTTP Client                          │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        Axum Router                          │
-│                                                             │
-│   POST /enqueue          DELETE /enqueue/:id                │
-│   GET  /health           GET    /metrics                    │
-│   GET  /matches                                             │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      MatchmakerCore                         │
-│                                                             │
-│  ├── PlayerPool                                             │
-│  │    ├── DashMap<Uuid, Arc<Player>>     primary store      │
-│  │    └── RwLock<BTreeMap<(u32, Uuid),  rating index        │
-│  │              Weak<Player>>>                              │
-│  │                                                          │
-│  ├── Arc<Metrics>                        atomic counters    │
-│  ├── Arc<Notify>                         wake signal        │
-│  └── Arc<RwLock<VecDeque<Match>>>        match history      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+
+    Client[HTTP Client]
+
+    Router[Axum Router]
+
+    Client --> Router
+
+    Router --> P1["POST /enqueue"]
+    Router --> P2["DELETE /enqueue/:id"]
+    Router --> P3["GET /health"]
+    Router --> P4["GET /metrics"]
+    Router --> P5["GET /matches"]
+
+    Router --> Core[MatchmakerCore]
+
+    Core --> Pool[PlayerPool]
+
+    Pool --> Store["DashMap<Uuid, Arc<Player>>"]
+    Pool --> Index["RwLock<BTreeMap<(u32,Uuid), Weak<Player>>>"]
+
+    Core --> Metrics["Arc<Metrics>"]
+    Core --> Notify["Arc<Notify>"]
+    Core --> History["Arc<RwLock<VecDeque<Match>>>"]
+```
 
 ### Matchmaking Flow
-┌───────────────────────────────────────────┐
-│      Worker wakes (Notify or tick)        │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  1. Seed selection                        │
-│  oldest_waiting() → seed player           │
-│  FIFO fairness                            │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  2. Constraint relaxation window          │
-│  relaxation_window(seed.join_timestamp)   │
-│                                           │
-│  Stage 1 │  0 – 5s   │  ± 50 MMR        │
-│  Stage 2 │  5 – 15s  │  ± 100 MMR       │
-│  Stage 3 │  15 – 30s │  ± 200 MMR       │
-│  Stage 4 │  30 – 60s │  ± 400 MMR       │
-│  Stage 5 │  60s+     │  ± 9999 (floor)  │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  3. Candidate discovery                   │
-│  BTreeMap range_scan(mmr ± window)        │
-│  Sorted: join_timestamp ASC, mmr ASC      │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  4. Atomic CAS claiming                   │
-│  compare_exchange(Waiting → Claimed)      │
-│                                           │
-│  if < 10 claimed:                         │
-│    rollback all → return ClaimFailed      │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  5. Team balance                          │
-│  exhaustive_balance(10 players)           │
-│  126 bitmasks → min |sum_a − sum_b|      │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────────┐
-│  6. Match creation                        │
-│  mark_matched × 10, pool.remove × 10     │
-│  push MatchRecord, update metrics         │
-└────────────────────┬──────────────────────┘
-                     │
-                     ▼
-          ┌─────────────────────┐
-          │   Match formed ✓    │
-          └─────────────────────┘
 
 
+```mermaid
+flowchart TD
+
+    A["Worker wakes (Notify or Tick)"]
+
+    B["1. Seed Selection<br/>oldest_waiting()<br/>FIFO Fairness"]
+
+    C["2. Constraint Relaxation"]
+
+    D["3. Candidate Discovery<br/>BTreeMap Range Scan"]
+
+    E["4. Atomic CAS Claiming<br/>Waiting → Claimed"]
+
+    F["5. Team Balancing<br/>Optimal 5v5 Split"]
+
+    G["6. Match Creation"]
+
+    H["Match Formed"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+```
+
+
+
+## Constraint Relaxation Strategy
+
+| Stage | Wait Time | Allowed MMR Range |
+|---------|------------|-------------------|
+| Stage 1 | 0–5 seconds | ±50 |
+| Stage 2 | 5–15 seconds | ±100 |
+| Stage 3 | 15–30 seconds | ±200 |
+| Stage 4 | 30–60 seconds | ±400 |
+| Stage 5 | 60+ seconds | ±9999 (guaranteed floor) |
+
+The matchmaking window expands as players wait longer, ensuring fairness first and guaranteed eventual matching under sustained load.
 
 ### Worker and Reaper
 
-┌─────────────────────────────────────┐  ┌─────────────────────────────────────┐
-│   Workers (WORKER_COUNT Tokio tasks)│  │      Reaper (1 Tokio task)          │
-└──────────────────┬──────────────────┘  └──────────────────┬──────────────────┘
-                   │                                         │
-                   ▼                                         ▼
-        ┌──────────────────────┐               ┌────────────────────────────┐
-        │  select! {           │               │  every REAPER_INTERVAL_MS: │
-        │                      │               │                            │
-        │  notify.notified()   │               │  scan all_players()        │
-        │  → attempt_match()   │               │                            │
-        │                      │               │  if state == Claimed AND   │
-        │  tick()              │               │  age > STALE_CLAIM_       │
-        │  → attempt_match()   │               │       TIMEOUT_MS:          │
-        │                      │               │                            │
-        │  shutdown()          │               │  CAS(Claimed → Waiting)    │
-        │  → break             │               │                            │
-        │  }                   │               │  log recovery event        │
-        └──────────────────────┘               │                            │
-                   │                           │  metrics                   │
-                   ▼                           │  .stale_claims_recovered++ │
-        ┌──────────────────────┐               └────────────────────────────┘
-        │  WorkerState tracks  │
-        │  consecutive failures│
-        │  per seed for        │
-        │  throughput guard    │
-        └──────────────────────┘
+```mermaid
+flowchart LR
+
+    subgraph Workers
+        W1["notify.notified()"]
+        W2["tick()"]
+        W3["attempt_match()"]
+        W4["shutdown()"]
+
+        W1 --> W3
+        W2 --> W3
+        W4 --> End1["Worker Exit"]
+    end
+
+    subgraph Reaper
+        R1["Periodic Scan"]
+        R2["Find Stale Claimed Players"]
+        R3["CAS: Claimed → Waiting"]
+        R4["Recover Metrics"]
+
+        R1 --> R2
+        R2 --> R3
+        R3 --> R4
+    end
+```
 
 ## Repository Structure
 
+```text
 matchmaker/
 ├── src/
-│   ├── main.rs              entry point — config, workers, server, shutdown
-│   ├── lib.rs               crate root — re-exports for integration tests
-│   ├── config/mod.rs        env var loading, validation, fail-fast startup
-│   ├── models/mod.rs        Player (AtomicU8 state machine), Match, Team, DTOs
+│   ├── main.rs
+│   ├── lib.rs
+│   ├── config/
+│   │   └── mod.rs
+│   ├── models/
+│   │   └── mod.rs
 │   ├── engine/
-│   │   ├── mod.rs           MatchmakerCore — pool, metrics, notify, history
-│   │   ├── bucket.rs        PlayerPool — DashMap + BTreeMap dual-structure
-│   │   ├── relaxation.rs    relaxation_window(), scan_bounds() — 5-stage
-│   │   ├── balancer.rs      exhaustive_balance() — C(10,5) optimal split
-│   │   └── matcher.rs       attempt_match() — full pipeline, WorkerContext
-│   ├── workers/mod.rs       spawn_all() — worker pool + Reaper task
-│   ├── metrics/mod.rs       Metrics — AtomicU64 counters + snapshot
-│   ├── api/mod.rs           Axum router, 5 handlers, AppError
-│   └── utils/mod.rs         shared utilities — timestamps, averages
+│   │   ├── mod.rs
+│   │   ├── bucket.rs
+│   │   ├── relaxation.rs
+│   │   ├── balancer.rs
+│   │   └── matcher.rs
+│   ├── workers/
+│   │   └── mod.rs
+│   ├── metrics/
+│   │   └── mod.rs
+│   ├── api/
+│   │   └── mod.rs
+│   └── utils/
+│       └── mod.rs
+│
 ├── tests/
-│   ├── common/mod.rs        shared test infrastructure — builders, helpers
-│   ├── matchmaking.rs       end-to-end pipeline, relaxation, fairness (23)
-│   ├── balancing.rs         optimality proofs, edge cases (17)
-│   ├── concurrency.rs       CAS correctness, crash recovery (17)
-│   ├── metrics.rs           counter accuracy, derived fields (24)
-│   ├── api.rs               HTTP contract, all status codes (29)
-│   ├── stress.rs            correctness under load (5+1 ignored)
-│   └── property_tests.rs    proptest universal invariants (11)
+│   ├── common/
+│   │   └── mod.rs
+│   ├── matchmaking.rs
+│   ├── balancing.rs
+│   ├── concurrency.rs
+│   ├── metrics.rs
+│   ├── api.rs
+│   ├── stress.rs
+│   └── property_tests.rs
+│
 ├── scripts/
-│   ├── simulate.py          3-phase load simulator, correctness validation
-│   ├── requirements.txt     aiohttp, numpy
-│   └── sample_results.md    documented simulation output
+│   ├── simulate.py
+│   ├── requirements.txt
+│   └── sample_results.md
+│
 ├── docs/
-│   ├── architecture.md      extended system design
-│   └── design_decisions.md  10 decision records with rationale
-├── .env.example             all config variables with defaults
-└── .github/workflows/
-    └── rust-ci.yml          fmt + clippy -D warnings + test + cache
-
+│   ├── architecture.md
+│   └── design_decisions.md
+│
+├── .env.example
+│
+└── .github/
+    └── workflows/
+        └── rust-ci.yml
+```
 
 ---
 
