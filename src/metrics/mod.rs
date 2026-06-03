@@ -134,15 +134,21 @@ impl Metrics {
         let skill_spread_count = self.skill_spread_count.load(Ordering::Relaxed);
         let team_delta_count = self.team_delta_count.load(Ordering::Relaxed);
 
-        let avg_wait_ms = self.total_wait_time_ms.load(Ordering::Relaxed)
+        let avg_wait_ms = self
+            .total_wait_time_ms
+            .load(Ordering::Relaxed)
             .checked_div(total_players_matched)
             .unwrap_or(0);
 
-        let avg_skill_spread = self.skill_spread_sum.load(Ordering::Relaxed)
+        let avg_skill_spread = self
+            .skill_spread_sum
+            .load(Ordering::Relaxed)
             .checked_div(skill_spread_count)
             .unwrap_or(0);
 
-        let avg_team_delta = self.team_delta_sum.load(Ordering::Relaxed)
+        let avg_team_delta = self
+            .team_delta_sum
+            .load(Ordering::Relaxed)
             .checked_div(team_delta_count)
             .unwrap_or(0);
 
